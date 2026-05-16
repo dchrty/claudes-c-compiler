@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Always-on baseline.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git curl ca-certificates sudo bc jq python3 \
+      git curl ca-certificates sudo bc jq python3 gettext-base \
       build-essential \
     && rm -rf /var/lib/apt/lists/*
 

@@ -25,13 +25,14 @@ case "$TYPE" in
     ;;
 
   judge)
-    CRITERIA=$(yq -r '.gate.criteria' "$CONFIG")
+    CRITERIA_MD=$(yq -r '.gate.criteria_md // "./JUDGE.md"' "$CONFIG")
     SANDBOX=$(mktemp -d)
     trap 'rm -rf "$SANDBOX"' EXIT
 
     # Diff against upstream/main = the change being proposed for landing.
     git -C "$WORKSPACE" diff upstream/main -- . \
         ':(exclude)current_tasks' ':(exclude)ideas' \
+        ":(exclude)$CRITERIA_MD" \
         > "$SANDBOX/diff.patch"
 
     if ! [ -s "$SANDBOX/diff.patch" ]; then
@@ -39,21 +40,14 @@ case "$TYPE" in
       exit 1
     fi
 
-    printf '%s\n' "$CRITERIA" > "$SANDBOX/criteria.txt"
+    # JUDGE.md was rendered into the seed by init_repo.sh; the worker repo
+    # carries it. Copy it into the sandbox so the judge sees ONLY the rubric
+    # and the diff — nothing else from the worker's world.
+    cp "$WORKSPACE/$CRITERIA_MD" "$SANDBOX/JUDGE.md"
 
-    # The judge's whole world is this tmpdir. It writes verdict.json, exits.
-    PROMPT='You are an isolated reviewer. You can see two files:
-  criteria.txt - what this change must satisfy
-  diff.patch   - the proposed change (against upstream/main)
-
-You have no other context. The author of this change cannot argue with you.
-
-Decide pass or fail. Write your verdict to verdict.json with this exact shape
-on a single line:
-
-  {"pass": <true|false>, "feedback": "<actionable text; if pass briefly say why; if fail say exactly what to fix>"}
-
-Then exit. Do not modify any other files.'
+    PROMPT='Read JUDGE.md for your full instructions and the rubric.
+You can also see diff.patch — the change being proposed.
+Write your verdict to verdict.json and exit.'
 
     FACTORY_CONFIG="$CONFIG" /factory/scripts/run_agent.sh "$PROMPT" "$SANDBOX" >&2
 

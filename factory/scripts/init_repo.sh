@@ -22,16 +22,21 @@ else
   cp -r "$SEED" "$WORK/seed"
 fi
 
-# Render CLAUDE.md from template, substituting target description and gate.
+# Render CLAUDE.md (worker) and JUDGE.md (judge rubric, if applicable)
+# from templates. Both get the same TARGET substitution.
 TARGET=$(yq -r '.target' "$CONFIG")
 GATE_TYPE=$(yq -r '.gate.type' "$CONFIG")
 case "$GATE_TYPE" in
   shell) GATE_DESC="Run: $(yq -r '.gate.cmd' "$CONFIG")" ;;
-  judge) GATE_DESC="LLM judge: $(yq -r '.gate.criteria' "$CONFIG")" ;;
+  judge) GATE_DESC="A fresh agent reads JUDGE.md (criteria) and diff.patch, writes verdict.json" ;;
 esac
 
 export TARGET GATE_DESC
-envsubst < "$FACTORY_DIR/CLAUDE.md.template" > "$WORK/seed/CLAUDE.md"
+envsubst '$TARGET $GATE_DESC' < "$FACTORY_DIR/CLAUDE.md.template" > "$WORK/seed/CLAUDE.md"
+
+if [ "$GATE_TYPE" = "judge" ]; then
+  envsubst '$TARGET' < "$FACTORY_DIR/JUDGE.md.template" > "$WORK/seed/JUDGE.md"
+fi
 
 # Create coordination dirs the agents will use.
 mkdir -p "$WORK/seed/current_tasks" "$WORK/seed/ideas"

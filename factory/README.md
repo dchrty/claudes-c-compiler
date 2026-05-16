@@ -3,30 +3,59 @@
 A small, project-agnostic port of [`vizopsai/async_compiler_factory`](https://github.com/vizopsai/async_compiler_factory).
 Same coordination model (N parallel CLI-agent containers sharing a bare git
 repo) — but the project, the toolchain, the gate, **and the agent** are all
-configured in `factory.yaml` instead of hardcoded.
+configured in `factory.yaml`.
 
-## What's different from ACF
+## How you set up a new project
 
-1. **`factory.yaml` is the only per-project surface.** Target description,
-   seed repo, gate, agent count, duration, toolchain, agent kind — all here.
-2. **Pluggable agent.** `agent.kind: codex | claude-code`. The dispatcher
-   (`scripts/run_agent.sh`) hides the choice from everything else.
-3. **Pluggable gate.** Either:
-   - `shell`: a command (e.g. `cargo test`); exit 0 means pass.
-   - `judge`: a **fresh agent session in a sandboxed tmpdir** that sees only
-     `criteria.txt` + `diff.patch` and writes `verdict.json`. Same agent kind
-     as the worker, but a separate process with no shared CLI history and no
-     view of the worker's repo, prompt, or scratchwork.
+You write **two markdown files and one yaml**:
 
-No API calls anywhere. The harness only ever spawns CLI sessions.
+1. `CLAUDE.md.template` — what the worker agents do in their ralph loop
+   (the existing one is a sane default; usually just edit `${TARGET}`).
+2. `factory.yaml` — pick the agent, gate type, fleet size, toolchain.
+3. (only if `gate.type: judge`) `JUDGE.md.template` — the rubric the
+   reviewing agent applies.
 
-## What's the same as ACF
+That's the whole authoring surface.
 
-- `upstream.git/` bare repo as the only coordination mechanism.
-- `current_tasks/*.txt` lock protocol.
-- `ideas/*.txt` backlog.
-- Per-agent container, fresh clone every cycle, push frequently.
-- Time + (eventually) cost caps.
+## The two gate paths
+
+You pick one of these in `factory.yaml`:
+
+```yaml
+gate:
+  type: shell
+  cmd: "cargo test --release 2>&1 | tail -50"
+```
+
+This is the simplest case — your test suite *is* the truth. No second agent.
+The worker's ralph loop runs the command and trusts the exit code.
+
+```yaml
+gate:
+  type: judge
+  criteria_md: ./JUDGE.md
+```
+
+For things you can't easily test (architectural fit, prompt quality,
+"is this design reasonable"). A fresh agent session is spawned in a
+sandboxed tmpdir containing only `JUDGE.md` + `diff.patch`. It writes
+`verdict.json` and exits. The worker has no way to bias it; the judge
+has no view of the worker's reasoning, repo, or prompt.
+
+The `JUDGE.md` itself is rendered from `JUDGE.md.template` into the
+seed at init time, so it travels with the repo.
+
+## Pluggable agent
+
+`agent.kind` in `factory.yaml`:
+
+- `codex` — current target. Uses `codex exec "<prompt>"`.
+- `claude-code` — adapter present, not the current focus.
+
+Adding a new agent kind = drop a script in `scripts/agents/<kind>.sh`
+implementing the contract `<kind>.sh PROMPT WORKDIR`, then add one
+`case` branch to `scripts/run_agent.sh`. The dispatcher hides the
+choice from everything else, including the gate.
 
 ## Usage
 
@@ -38,27 +67,25 @@ export OPENAI_API_KEY=...           # for agent.kind=codex
 ./scripts/run.sh path/to/other.yaml
 ```
 
-`run.sh` builds the image, initializes `upstream.git/` from the seed,
-launches N agents, monitors every 5 minutes, and stops on time-out.
+## Host prerequisites
 
-## The two contracts
+- `docker`
+- `yq` (mikefarah/yq v4)
+- `gettext` (provides `envsubst` — used by `init_repo.sh` to render templates)
 
-**Agent dispatcher** — `scripts/run_agent.sh PROMPT WORKDIR`
-Spawns a fresh agent session of the configured kind in `WORKDIR`. That's it.
-Adding a new agent type means adding `scripts/agents/<kind>.sh` and one
-`case` branch in `run_agent.sh`.
+## What's the same as ACF
 
-**Gate** — `scripts/gate.sh`
-Exits 0 (pass) or 1 (fail), prints feedback to stderr. The worker invokes
-this directly before pushing. The judge variant uses `run_agent.sh` to spawn
-its isolated reviewer session.
+- `upstream.git/` bare repo as the only coordination mechanism.
+- `current_tasks/*.txt` lock protocol.
+- `ideas/*.txt` backlog.
+- Per-agent container, fresh clone every cycle, push frequently.
+- Time + (eventually) cost caps.
 
 ## Status
 
 Skeleton, **not end-to-end tested.** The `codex.sh` adapter assumes
 `codex exec "<prompt>"` is the headless invocation — verify against your
-codex version and adjust if needed. The `claude-code` adapter is included
-but not the current target.
+codex version and adjust if needed.
 
 ## Layout
 
@@ -66,10 +93,11 @@ but not the current target.
 factory/
   factory.yaml             # the only per-project config
   Dockerfile               # slim base + build-arg toolchain
-  CLAUDE.md.template       # rendered into upstream.git on init
+  CLAUDE.md.template       # worker job description
+  JUDGE.md.template        # judge rubric (only used when gate.type: judge)
   scripts/
     run.sh                 # orchestrator
-    init_repo.sh           # seed -> upstream.git
+    init_repo.sh           # render templates, seed -> upstream.git
     launch.sh              # docker run × N
     entrypoint.sh          # per-agent loop
     gate.sh                # shell|judge dispatch, exit-code contract

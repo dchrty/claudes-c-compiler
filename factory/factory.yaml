@@ -17,16 +17,17 @@ target: |
 # Either a local path (relative to factory.yaml) or a git URL.
 seed_repo: ./examples/json_parser_seed
 
-# Gate: how the system decides pass/fail after each agent iteration.
+# Gate: how the system decides pass/fail before a change lands.
 # Two types supported:
 #   - shell: run a command in the workspace; exit 0 = pass, output = feedback
-#   - judge: hand the diff + criteria to an LLM; structured pass/fail returned
+#   - judge: spawn a fresh isolated agent with criteria_md + diff;
+#            it writes verdict.json
 gate:
   type: shell
   cmd: "cargo test --release 2>&1 | tail -50"
   # For type: judge, instead use:
-  #   criteria: "Code is idiomatic Rust, no unwrap on user input, tests still pass"
-  #   model: claude-opus-4-7
+  #   type: judge
+  #   criteria_md: ./JUDGE.md     # path to your rubric (rendered from template at init)
 
 # Per-iteration retry policy.
 # An iteration = one claude invocation + one gate run.
