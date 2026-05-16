@@ -4,9 +4,22 @@
 set -uo pipefail
 
 AGENT_ID="${AGENT_ID:-unknown}"
+AGENT_KIND="${AGENT_KIND:-codex}"
 LOG="/workspace/logs/agent-${AGENT_ID}.log"
 mkdir -p /workspace/logs
 exec > >(tee -a "$LOG") 2>&1
+
+# Materialize host CLI auth into this container's $HOME, RW.
+# Each container gets its own copy so token refresh stays local —
+# the host's auth file is never written from inside.
+case "$AGENT_KIND" in
+  codex)        AUTH_TARGET="$HOME/.codex" ;;
+  claude-code)  AUTH_TARGET="$HOME/.claude" ;;
+esac
+if [ -d /factory_auth ] && [ ! -e "$AUTH_TARGET" ]; then
+  cp -r /factory_auth "$AUTH_TARGET"
+  chmod -R u+w "$AUTH_TARGET"
+fi
 
 save_work() {
   echo "[agent $AGENT_ID] caught signal, attempting WIP save"

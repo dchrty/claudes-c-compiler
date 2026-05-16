@@ -59,19 +59,31 @@ choice from everything else, including the gate.
 
 ## Usage
 
-```bash
-export OPENAI_API_KEY=...           # for agent.kind=codex
-# or: export ANTHROPIC_API_KEY=...  # for agent.kind=claude-code
+First, log in to the CLI **on the host** once:
 
+```bash
+codex login        # for agent.kind=codex
+# or: claude login # for agent.kind=claude-code
+```
+
+Then run:
+
+```bash
 ./scripts/run.sh                    # uses factory.yaml in this dir
 ./scripts/run.sh path/to/other.yaml
 ```
+
+`launch.sh` mounts your host's `~/.codex` (or `~/.claude`) into each
+container read-only; `entrypoint.sh` copies it to the agent user's home
+so token refresh stays local to that container — parallel agents never
+race on your host's auth file.
 
 ## Host prerequisites
 
 - `docker`
 - `yq` (mikefarah/yq v4)
 - `gettext` (provides `envsubst` — used by `init_repo.sh` to render templates)
+- The chosen agent's CLI installed and logged in (`codex login` or `claude login`)
 
 ## What's the same as ACF
 
