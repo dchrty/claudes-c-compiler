@@ -1,0 +1,41 @@
+# factory.yaml — the only thing you should need to change per project.
+# This is the example config: a tiny Rust JSON parser project.
+
+target: |
+  Build a JSON parser library in Rust at /workspace/code.
+  It must expose `parse(s: &str) -> Result<Value, ParseError>` and
+  pass every test in tests/. Performance and code clarity matter,
+  but correctness is the only hard requirement.
+
+# Seed: what gets pushed into upstream.git on first init.
+# Either a local path (relative to factory.yaml) or a git URL.
+seed_repo: ./examples/json_parser_seed
+
+# Gate: how the system decides pass/fail after each agent iteration.
+# Two types supported:
+#   - shell: run a command in the workspace; exit 0 = pass, output = feedback
+#   - judge: hand the diff + criteria to an LLM; structured pass/fail returned
+gate:
+  type: shell
+  cmd: "cargo test --release 2>&1 | tail -50"
+  # For type: judge, instead use:
+  #   criteria: "Code is idiomatic Rust, no unwrap on user input, tests still pass"
+  #   model: claude-opus-4-7
+
+# Per-iteration retry policy.
+# An iteration = one claude invocation + one gate run.
+# If the gate fails, feedback is fed into the next iteration's prompt.
+max_iterations_per_task: 6
+
+# Fleet config.
+agents: 4
+duration: 2h
+cost_cap_usd: 50
+
+# Toolchain: extra apt packages baked into the agent container.
+# The base image always has git, curl, node, claude-code-cli.
+toolchain:
+  apt: [build-essential, pkg-config, libssl-dev]
+  rust: stable
+  # python: "3.11"   # uncomment for Python projects
+  # node: "20"       # always present, override version here

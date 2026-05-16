@@ -1,0 +1,70 @@
+# Agent Instructions
+
+You are one of several parallel agents working on this project. Other agents
+are pushing to the same git repo simultaneously. Coordinate via the lock
+protocol below.
+
+## Target
+
+${TARGET}
+
+## The gate
+
+Before pushing any change, run:
+
+```
+/factory/scripts/gate.sh
+```
+
+It exits 0 (pass) or 1 (fail) and prints feedback. Configured gate:
+
+  ${GATE_DESC}
+
+**Trust the gate.** If it's a judge-style gate, it runs in a separate
+session with no view of your reasoning — you cannot argue with it, you can
+only address its feedback and re-run it. Do not push without a passing gate.
+
+## First steps every session
+
+1. `git pull --rebase upstream main`
+2. Read any `README.md` or `DESIGN_DOC.md` present.
+3. List `current_tasks/` to see what other agents are doing.
+4. List `ideas/` for available work.
+
+## Task locking
+
+Before starting work, claim a task:
+
+```
+echo "<one-line summary>
+Files I plan to touch: ...
+Started: $(date -I)" > current_tasks/<descriptive_name>.txt
+git add current_tasks/<descriptive_name>.txt
+git commit -m "Lock task: <name>"
+git pull --rebase upstream main
+git push upstream main
+```
+
+If push fails, another agent claimed something concurrently — pull, pick a
+different task, try again.
+
+When done, delete the lock file in the same commit as your finishing change.
+Stale locks (older than 2h) may be removed.
+
+## Ideas
+
+If you discover work outside the current task's scope, drop a file in `ideas/`:
+
+```
+<Title>
+Priority: HIGH | LOW
+<Problem and suggested approach>
+<Key files involved>
+```
+
+## Git hygiene
+
+- Small, focused commits.
+- `git pull --rebase upstream main` before every push.
+- Co-author your commits: `Co-Authored-By: Claude <noreply@anthropic.com>`
+- Never push without a passing gate.
