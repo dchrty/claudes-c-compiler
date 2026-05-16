@@ -1,6 +1,12 @@
 # factory.yaml — the only thing you should need to change per project.
 # This is the example config: a tiny Rust JSON parser project.
 
+# The CLI agent used for both worker AND judge sessions.
+# Each invocation is a fresh process — no carried context.
+# Supported: codex | claude-code
+agent:
+  kind: codex
+
 target: |
   Build a JSON parser library in Rust at /workspace/code.
   It must expose `parse(s: &str) -> Result<Value, ParseError>` and

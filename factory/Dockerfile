@@ -3,12 +3,16 @@
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Always-on baseline: git, curl, node (for claude-code), python (for judge),
-# build-essential (most projects need it).
+# Always-on baseline.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git curl ca-certificates sudo bc jq python3 python3-pip \
+      git curl ca-certificates sudo bc jq python3 \
       build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+# yq (mikefarah/yq v4) — used by every script that reads factory.yaml.
+RUN curl -fsSL -o /usr/local/bin/yq \
+      https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+    && chmod +x /usr/local/bin/yq
 
 # Project-specific apt packages (rendered from factory.yaml toolchain.apt).
 ARG EXTRA_APT=""
@@ -17,16 +21,14 @@ RUN if [ -n "$EXTRA_APT" ]; then \
       && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Node + Claude Code CLI.
+# Node + agent CLIs. Both adapters are installed; factory.yaml picks one.
 ARG NODE_VERSION=20
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/* \
-    && npm install -g @anthropic-ai/claude-code
+    && npm install -g @openai/codex @anthropic-ai/claude-code
 
-RUN pip3 install --no-cache-dir anthropic pyyaml
-
-# Non-root agent user with passwordless sudo (needed for in-container apt etc.).
+# Non-root agent user with passwordless sudo (in-container apt etc.).
 RUN useradd -m -s /bin/bash agent \
     && echo "agent ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && mkdir -p /workspace /factory && chown -R agent:agent /workspace /factory
@@ -44,9 +46,8 @@ RUN if [ "$INSTALL_RUST" = "true" ]; then \
 ENV PATH="/home/agent/.cargo/bin:${PATH}"
 
 # Identity for commits.
-RUN git config --global user.name "Claude Agent" \
-    && git config --global user.email "noreply@anthropic.com" \
+RUN git config --global user.name "Factory Agent" \
+    && git config --global user.email "noreply@example.com" \
     && git config --global pull.rebase true
 
-# Factory scripts mount in at /factory; entrypoint lives there.
 ENTRYPOINT ["/factory/scripts/entrypoint.sh"]

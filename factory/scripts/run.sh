@@ -6,9 +6,6 @@ set -euo pipefail
 FACTORY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG="${1:-$FACTORY_DIR/factory.yaml}"
 
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "ANTHROPIC_API_KEY is not set." >&2; exit 1
-fi
 command -v docker >/dev/null || { echo "docker not found" >&2; exit 1; }
 command -v yq >/dev/null || { echo "yq not found (install: https://github.com/mikefarah/yq)" >&2; exit 1; }
 
